@@ -1,0 +1,76 @@
+import pandas as pd
+from pptx import Presentation
+from pptx.util import Pt
+from pptx.dml.color import RGBColor
+import os
+import pythoncom
+from win32com.client import Dispatch
+
+# Caminhos dos arquivos
+pptx_path = r"C:\Users\Beep Saude.BEEP1441\OneDrive\Documentos\Sales\RPA\MENINGO70 - DF e CMP.pptx"
+xlsx_path = r"C:\Users\Beep Saude.BEEP1441\OneDrive\Documentos\Sales\RPA\Campanhas.xlsx"
+
+# Pasta de saída
+output_folder = r"C:\Users\Beep Saude.BEEP1441\OneDrive\Documentos\Sales\RPA\Cards_Campanhas"
+
+# Criar a pasta de saída se não existir
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+# Carregar a planilha Excel
+df = pd.read_excel(xlsx_path)
+
+def update_text(slide, text):
+    for shape in slide.shapes:
+        if shape.has_text_frame:
+            text_frame = shape.text_frame
+            for p in text_frame.paragraphs:
+                p.text = text
+                p.font.bold = True
+                p.font.size = Pt(18)
+                p.font.name = 'Calibri'
+                p.font.color.rgb = RGBColor(79, 94, 105)  # Cor cinza #4F5E69
+            return
+
+# Função para salvar o slide como imagem usando o PowerPoint
+def save_slide_as_image(pptx_file, slide_index, output_file):
+    pythoncom.CoInitialize()  # Inicializa o COM
+    powerpoint = Dispatch('PowerPoint.Application')
+    powerpoint.Visible = 1
+
+    presentation = powerpoint.Presentations.Open(pptx_file, WithWindow=False)
+    slide = presentation.Slides(slide_index + 1)  # Índices em PowerPoint começam em 1
+
+    slide.Export(output_file, 'PNG')
+    presentation.Close()
+    powerpoint.Quit()
+    pythoncom.CoUninitialize()
+
+# Loop para atualizar e salvar os slides como imagens
+for index, row in df.iterrows():
+    code = row['código original']
+
+    # Carregar a apresentação do PowerPoint
+    prs = Presentation(pptx_path)
+
+    # Atualizar o texto no slide
+    slide = prs.slides[0]  # Supondo que você está editando o primeiro slide
+    update_text(slide, code)
+    
+    # Salvar a apresentação temporária
+    temp_pptx_path = os.path.join(output_folder, f"temp_{code}.pptx")
+    prs.save(temp_pptx_path)
+    
+    # Converter e salvar o slide como imagem
+    output_file = os.path.join(output_folder, f"{code}.png")
+    try:
+        save_slide_as_image(temp_pptx_path, 0, output_file)
+        print(f"Imagem salva: {output_file}")
+    except Exception as e:
+        print(f"Erro ao salvar a imagem {output_file}: {e}")
+    
+    # Remover o arquivo temporário
+    if os.path.exists(temp_pptx_path):
+        os.remove(temp_pptx_path)
+
+print("Processo concluído!")
